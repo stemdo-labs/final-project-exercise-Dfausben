@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: backend
+        image: "{{ .Values.image.backend.repository }}:{{ .Values.image.backend.tag }}"
+        imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SPRING_DATASOURCE_URL
+          value: >-
+            jdbc:postgresql://{{ .Values.externalPostgres.host }}:{{ .Values.externalPostgres.port }}/{{ .Values.externalPostgres.database }}
+        - name: SPRING_DATASOURCE_USERNAME
+          value: {{ .Values.dbCredentials.username }}
+        - name: SPRING_DATASOURCE_PASSWORD
+          value: {{ .Values.dbCredentials.password }}
+        resources:
+          requests:
+            cpu: {{ .Values.resources.backend.requests.cpu }}
+            memory: {{ .Values.resources.backend.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.backend.limits.cpu }}
+            memory: {{ .Values.resources.backend.limits.memory }}
+        readinessProbe:
+          tcpSocket:
+            port: 8080
+          initialDelaySeconds: 60
+          periodSeconds: {{ .Values.readinessProbe.backend.periodSeconds }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+  selector:
+    app: backend

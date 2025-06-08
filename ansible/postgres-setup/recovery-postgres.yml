@@ -1,0 +1,58 @@
+---
+- name: Disaster Recovery for PostgreSQL database from Azure Container Registry backup
+  hosts: postgres_vm
+  become: yes
+  vars:
+    backup_dir: /tmp/postgres_backups
+    db_name: gestion_rrhh
+    acr_name: your_acr_name_here
+    acr_login_server: your_acr_login_server_here
+    acr_username: your_acr_username_here
+    acr_password: your_acr_password_here
+    backup_image_tag: latest
+
+  tasks:
+    - name: Ensure backup directory exists
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Login to Azure Container Registry
+      shell: |
+        echo "{{ acr_password }}" | docker login {{ acr_login_server }} --username {{ acr_username }} --password-stdin
+      register: acr_login
+      failed_when: acr_login.rc != 0
+
+    - name: Pull backup image from Azure Container Registry
+      shell: docker pull {{ acr_login_server }}/postgres-backup:{{ backup_image_tag }}
+      register: docker_pull
+      failed_when: docker_pull.rc != 0
+
+    - name: Create container from backup image
+      shell: docker create --name pg_backup_container {{ acr_login_server }}/postgres-backup:{{ backup_image_tag }}
+      register: docker_create
+      failed_when: docker_create.rc != 0
+
+    - name: Copy backup file from container
+      shell: docker cp pg_backup_container:/backup/{{ db_name }}_backup.sql {{ backup_dir }}/
+      register: docker_cp
+      failed_when: docker_cp.rc != 0
+
+    - name: Remove backup container
+      shell: docker rm pg_backup_container
+
+    - name: Restore PostgreSQL database from backup
+      command: >
+        pg_restore -U {{ db_user }} -d {{ db_name }} -v {{ backup_dir }}/{{ db_name }}_backup.sql
+      environment:
+        PGPASSWORD: "{{ db_password | default('') }}"
+      register: pg_restore
+      failed_when: pg_restore.rc != 0
+
+    - name: Logout from Azure Container Registry
+      shell: docker logout {{ acr_login_server }}
+
+  vars:
+    db_user: az_vm2
+    db_password: "{{ lookup('env', 'DB_PASSWORD') }}"

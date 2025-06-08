@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: gestion_rrhh_postgres
+    environment:
+      POSTGRES_USER: youruser
+      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: gestion_rrhh
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - gestion_rrhh_network
+
+  backend:
+    build:
+      context: ../final-project-gestion-rrhh-backend-Dfausben
+      dockerfile: Dockerfile
+    container_name: gestion_rrhh_backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/gestion_rrhh
+      SPRING_DATASOURCE_USERNAME: youruser
+      SPRING_DATASOURCE_PASSWORD: yourpassword
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+    networks:
+      - gestion_rrhh_network
+
+  frontend:
+    build:
+      context: ../final-project-gestion-rrhh-frontend-Dfausben
+      dockerfile: Dockerfile
+    container_name: gestion_rrhh_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - gestion_rrhh_network
+
+networks:
+  gestion_rrhh_network:
+
+volumes:
+  pgdata:

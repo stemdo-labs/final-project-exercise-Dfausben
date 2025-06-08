@@ -1,0 +1,60 @@
+replicaCount: 2
+
+image:
+  backend:
+    repository: dfausben/prf-rh-back
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: dfausben/prf-rh-front
+    tag: latest
+    pullPolicy: Always
+  postgres:
+    repository: postgres
+    tag: latest
+    pullPolicy: IfNotPresent
+
+dbCredentials:
+  username: youruser
+  password: yourpassword
+
+resources:
+  backend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+  postgres:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+readinessProbe:
+  backend:
+    httpGet:
+      path: /actuator/health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  frontend:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+ingress:
+  enabled: true
+  host: localhost

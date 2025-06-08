@@ -1,0 +1,58 @@
+---
+- name: Backup PostgreSQL database and push to Azure Container Registry
+  hosts: postgres_vm
+  become: yes
+  vars:
+    backup_dir: /tmp/postgres_backups
+    db_name: gestion_rrhh
+    backup_file: "{{ backup_dir }}/{{ db_name }}_backup_{{ ansible_date_time.iso8601_basic }}.sql"
+    acr_name: your_acr_name_here
+    acr_resource_group: your_resource_group_here
+    acr_login_server: your_acr_login_server_here
+    acr_username: your_acr_username_here
+    acr_password: your_acr_password_here
+
+  tasks:
+    - name: Ensure backup directory exists
+      file:
+        path: "{{ backup_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Dump PostgreSQL database to file
+      command: >
+        pg_dump -U {{ db_user }} -F c -b -v -f {{ backup_file }} {{ db_name }}
+      environment:
+        PGPASSWORD: "{{ db_password | default('') }}"
+      register: pg_dump_result
+      failed_when: pg_dump_result.rc != 0
+
+    - name: Login to Azure Container Registry
+      shell: |
+        echo "{{ acr_password }}" | docker login {{ acr_login_server }} --username {{ acr_username }} --password-stdin
+      register: acr_login
+      failed_when: acr_login.rc != 0
+
+    - name: Tag backup file as docker image (using ACR as registry)
+      shell: |
+        docker build -t {{ acr_login_server }}/postgres-backup:{{ ansible_date_time.iso8601_basic }} - <<EOF
+        FROM alpine
+        COPY {{ backup_file }} /backup/
+        EOF
+      args:
+        executable: /bin/bash
+      register: docker_build
+      failed_when: docker_build.rc != 0
+
+    - name: Push backup image to Azure Container Registry
+      shell: |
+        docker push {{ acr_login_server }}/postgres-backup:{{ ansible_date_time.iso8601_basic }}
+      register: docker_push
+      failed_when: docker_push.rc != 0
+
+    - name: Logout from Azure Container Registry
+      shell: docker logout {{ acr_login_server }}
+
+  vars:
+    db_user: your_new_superuser
+    db_password: "{{ lookup('env', 'DB_PASSWORD') }}"

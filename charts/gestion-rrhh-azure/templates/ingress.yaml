@@ -1,0 +1,28 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "gestion-rrhh.fullname" . }}-ingress
+  labels:
+    app.kubernetes.io/name: {{ include "gestion-rrhh.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  rules:
+  - host: {{ .Values.ingress.host | default "localhost" }}
+    http:
+      paths:
+      - path: /api(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "gestion-rrhh.fullname" . }}-backend
+            port:
+              number: 8080
+      - path: /(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ include "gestion-rrhh.fullname" . }}-frontend
+            port:
+              number: 80

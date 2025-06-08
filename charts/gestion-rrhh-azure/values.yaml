@@ -1,0 +1,54 @@
+replicaCount: 2
+
+image:
+  backend:
+    repository: "<acr_login_server>/backend"
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    repository: "<acr_login_server>/frontend"
+    tag: latest
+    pullPolicy: IfNotPresent
+
+dbCredentials:
+  username: youruser
+  password: yourpassword
+
+externalPostgres:
+  host: external-postgres-host
+  port: 5432
+  database: gestion_rrhh
+
+resources:
+  backend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  frontend:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+readinessProbe:
+  backend:
+    httpGet:
+      path: /actuator/health
+      port: 8080
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  frontend:
+    httpGet:
+      path: /
+      port: 80
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+ingress:
+  enabled: true
+  host: localhost

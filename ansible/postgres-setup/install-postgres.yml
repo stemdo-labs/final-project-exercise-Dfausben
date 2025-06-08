@@ -1,0 +1,101 @@
+---
+- name: Instalar y configurar PostgreSQL con acceso remoto
+  hosts: all
+  become: true
+  vars:
+    db_user: azure-vm1
+    db_password: usuario
+    db_name: azuredb
+    postgres_version: ""
+
+  tasks:
+
+    - name: Check if required dependencies are installed
+      shell: |
+        dpkg -s wget curl gnupg2 lsb-release ca-certificates postgresql postgresql-client postgresql-contrib libpq-dev python3-psycopg2
+      register: dependencies_installed
+      ignore_errors: yes
+      failed_when: false
+      changed_when: false
+
+    - name: Fail gracefully if any dependency is not installed
+      debug:
+        msg: "One or more required packages (wget, curl, gnupg2, lsb-release, ca-certificates) are not installed."
+      when: dependencies_installed.rc != 0
+
+    - name: Install PostgreSQL and dependencies
+      apt:
+        name:
+          - postgresql
+          - postgresql-client
+          - postgresql-contrib
+          - libpq-dev
+          - wget
+          - curl
+          - gnupg2
+          - lsb-release
+          - ca-certificates
+          - python3-psycopg2
+        state: present
+        update_cache: yes
+      when: dependencies_installed.rc != 0
+
+    - name: Install PostgreSQL
+      apt:
+        name: postgresql
+        state: present
+        update_cache: yes
+
+    - name: Asegurarse de que PostgreSQL esté corriendo
+      service:
+        name: postgresql
+        state: started
+        enabled: true
+
+    - name: Obtain installed PostgreSQL version
+      shell: psql --version | awk '{print $3}' | cut -d '.' -f1
+      register: pg_version
+      changed_when: false
+
+    - name: Set postgres_version variable
+      set_fact:
+        postgres_version: "{{ pg_version.stdout }}"
+      when: postgres_version == ""
+
+    - name: Permitir conexiones remotas en postgresql.conf
+      lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses ="
+        line: "listen_addresses = '*'"
+        state: present
+      notify: Restart PostgreSQL
+
+    - name: Permitir conexiones remotas en pg_hba.conf (IPv4)
+      lineinfile:
+        path: "/etc/postgresql/{{ postgres_version }}/main/pg_hba.conf"
+        line: "host    all             all             0.0.0.0/0               md5"
+        create: yes
+        insertafter: EOF
+      notify: Restart PostgreSQL
+
+    - name: Crear usuario en PostgreSQL
+      become_user: postgres
+      postgresql_user:
+        name: "{{ db_user }}"
+        password: "{{ db_password }}"
+        encrypted: true
+        state: present
+
+    - name: Crear base de datos
+      become_user: postgres
+      postgresql_db:
+        name: "{{ db_name }}"
+        owner: "{{ db_user }}"
+        encoding: UTF8
+        state: present
+
+  handlers:
+    - name: Restart PostgreSQL
+      service:
+        name: postgresql
+        state: restarted

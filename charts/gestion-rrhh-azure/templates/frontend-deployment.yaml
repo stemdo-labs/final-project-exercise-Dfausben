@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: "{{ .Values.image.frontend.repository }}:{{ .Values.image.frontend.tag }}"
+        imagePullPolicy: {{ .Values.image.frontend.pullPolicy }}
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            cpu: {{ .Values.resources.frontend.requests.cpu }}
+            memory: {{ .Values.resources.frontend.requests.memory }}
+          limits:
+            cpu: {{ .Values.resources.frontend.limits.cpu }}
+            memory: {{ .Values.resources.frontend.limits.memory }}
+        readinessProbe:
+          httpGet:
+            path: {{ .Values.readinessProbe.frontend.httpGet.path }}
+            port: {{ .Values.readinessProbe.frontend.httpGet.port }}
+          initialDelaySeconds: {{ .Values.readinessProbe.frontend.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.frontend.periodSeconds }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+  selector:
+    app: frontend
